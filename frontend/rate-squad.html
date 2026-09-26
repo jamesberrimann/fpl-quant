@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Squad Rating — FPL Tool</title>
+  <link rel="stylesheet" href="/style.css?v=2">
+  <style>
+    .pitch-outer { max-width: 460px; margin: 0 auto; }
+
+    .pitch {
+      position: relative;
+      background: #2e7d46;
+      background-image: repeating-linear-gradient(180deg,
+        transparent, transparent 48px, rgba(0,0,0,.055) 48px, rgba(0,0,0,.055) 96px);
+      border-radius: 10px; overflow: hidden; aspect-ratio: 2/3;
+      box-shadow: var(--sh-lg);
+    }
+    .pitch-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    .player-node {
+      position: absolute; display: flex; flex-direction: column;
+      align-items: center; transform: translate(-50%, -50%);
+    }
+    .shirt-wrap { position: relative; width: 34px; height: 37px; }
+    .shirt-wrap svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+
+    /* Regression-risk warning badge */
+    .risk-dot {
+      position: absolute; top: -3px; right: -5px;
+      width: 12px; height: 12px; border-radius: 3px;
+      background: #f59e0b; border: 1.5px solid #fff;
+      font-size: 8px; font-weight: 900; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2; letter-spacing: -0.5px;
+    }
+
+    .player-lbl {
+      font-size: 0.5rem; font-weight: 700; color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,.8);
+      white-space: nowrap; margin-top: 2px; text-transform: uppercase;
+    }
+
+    /* Percentile pill below name */
+    .perc-pill {
+      font-size: 0.4375rem; font-weight: 700;
+      padding: 1px 4px; border-radius: 3px;
+      margin-top: 1px; white-space: nowrap;
+      text-shadow: none;
+    }
+    .perc-high  { background: #16a34a; color: #fff; }
+    .perc-mid   { background: #d97706; color: #fff; }
+    .perc-low   { background: #dc2626; color: #fff; }
+    .fix-lbl {
+      font-size: 0.4375rem; font-weight: 600;
+      color: rgba(255,255,255,.7);
+      text-shadow: 0 1px 3px rgba(0,0,0,.7);
+      white-space: nowrap; margin-top: 1px;
+    }
+
+    @media (max-width: 480px) { .pitch-outer { max-width: 100%; } }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+  <script src="/kits.js?v=5"></script>
+  <div class="container">
+    <h1>Squad Rating</h1>
+
+    <div class="controls">
+      <label>Entry ID
+        <input type="number" id="entry-id" placeholder="e.g. 1234567">
+      </label>
+      <button id="run-btn" onclick="run()">Rate My Squad</button>
+    </div>
+
+    <p class="msg msg-error" id="error"></p>
+    <div class="loading" id="loading"><div class="spinner"></div>Loading…</div>
+
+    <div id="results" style="display:none">
+      <div style="
+        background:var(--surface); border:1px solid var(--border);
+        border-radius:var(--r-lg); padding:0.875rem 1.25rem;
+        box-shadow:var(--sh-sm); margin-bottom:1rem;
+      ">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.625rem;">
+          <div style="font-size:0.8125rem; color:var(--text-muted); font-weight:500">Squad Score</div>
+          <div style="display:flex; align-items:baseline; gap:4px;">
+            <span id="squad-score-value" style="font-size:2rem; font-weight:800; color:var(--text); line-height:1; font-variant-numeric:tabular-nums"></span>
+            <span style="font-size:0.875rem; color:var(--text-muted); font-weight:500">/100</span>
+          </div>
+        </div>
+        <div id="squad-summary" style="font-size:0.8125rem; color:var(--text-muted); line-height:1.55; border-top:1px solid var(--border); padding-top:0.625rem;"></div>
+      </div>
+      <div class="pitch-outer">
+        <div class="pitch" id="pitch"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ROW_Y = { GKP: 12, DEF: 33, MID: 56, FWD: 81 };
+    const { teamColours, abbr, shirtSvg, spreadX, PITCH_SVG } = FPLKits;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = FPL.getEntryId();
+      if (saved) document.getElementById('entry-id').value = saved;
+      document.getElementById('entry-id').addEventListener('change', () =>
+        FPL.setEntryId(document.getElementById('entry-id').value));
+    });
+
+    function percClass(p) {
+      if (p >= 75) return 'perc-high';
+      if (p >= 40) return 'perc-mid';
+      return 'perc-low';
+    }
+
+    function placePlayer(player) {
+      const [fill, stroke] = teamColours(player);
+      const node = document.createElement('div');
+      node.className = 'player-node';
+      node.style.left = player._x + '%';
+      node.style.top  = player._y + '%';
+
+      const riskBadge = player.flag
+        ? `<span class="risk-dot" title="${player.flag}">~</span>` : '';
+
+      const pct = Math.round(player.percentile);
+      const fix = player.next_fixture ? `<div class="fix-lbl">${player.next_fixture}</div>` : '';
+      node.innerHTML = `
+        <div class="shirt-wrap">
+          ${shirtSvg(fill, stroke, abbr(player.web_name))}
+          ${riskBadge}
+        </div>
+        <div class="player-lbl">${player.web_name}</div>
+        <div class="perc-pill ${percClass(pct)}">${pct}th</div>
+        ${fix}`;
+      document.getElementById('pitch').appendChild(node);
+    }
+
+    function generateSummary(data) {
+      const players = data.players;
+      const score = data.squad_score;
+
+      // Per-position average percentile
+      const byPos = {};
+      for (const p of players) {
+        if (!byPos[p.position]) byPos[p.position] = [];
+        byPos[p.position].push(p.percentile);
+      }
+      const posAvg = Object.fromEntries(
+        Object.entries(byPos).map(([pos, arr]) => [pos, arr.reduce((a,b)=>a+b,0)/arr.length])
+      );
+      const posLabel = { GKP: 'goalkeeping', DEF: 'defence', MID: 'midfield', FWD: 'attack' };
+      const sorted = Object.entries(posAvg).sort((a,b) => b[1]-a[1]);
+      const [bestPos, bestAvg] = sorted[0];
+      const [worstPos, worstAvg] = sorted[sorted.length-1];
+
+      const high = players.filter(p => p.percentile >= 75).length;
+      const low  = players.filter(p => p.percentile < 35).length;
+      const risks = players.filter(p => p.flag);
+
+      let tier;
+      if      (score >= 75) tier = 'a strong squad — most players sit well above the median starter';
+      else if (score >= 55) tier = 'a solid squad with a few areas to improve';
+      else if (score >= 40) tier = 'an average squad — meaningful upgrades exist';
+      else                  tier = 'a squad that needs attention — several positions are well below average';
+
+      let html = `<p>At <strong>${score.toFixed(1)}/100</strong> (where 50 = median squad of regular starters), you have ${tier}.</p>`;
+
+      html += `<p>Your strongest area is <strong>${posLabel[bestPos]}</strong> (avg ${Math.round(bestAvg)}th percentile).`;
+      if (worstAvg < 60) {
+        html += ` Your weakest is <strong>${posLabel[worstPos]}</strong> (avg ${Math.round(worstAvg)}th percentile) — consider upgrades here.`;
+      } else {
+        html += ` All positions are above average — <strong>${posLabel[worstPos]}</strong> is your least dominant at ${Math.round(worstAvg)}th percentile but still strong.`;
+      }
+      html += `</p>`;
+
+      if (high > 0 || low > 0) {
+        html += `<p><strong>${high} player${high !== 1 ? 's' : ''}</strong> rank in the top 25% of their position; `;
+        html += `<strong>${low}</strong> rank in the bottom 35%.</p>`;
+      }
+
+      if (risks.length > 0) {
+        html += `<p style="color:var(--warning)">Fixture dependent: <strong>${risks.map(p => p.web_name).join(', ')}</strong> — strong output not backed by underlying defensive numbers.</p>`;
+      }
+
+      return html;
+    }
+
+    async function run() {
+      const btn = document.getElementById('run-btn');
+      document.getElementById('results').style.display = 'none';
+      FPL.clearError(); FPL.setLoading(true, btn);
+      document.querySelectorAll('#pitch .player-node').forEach(n => n.remove());
+      document.getElementById('pitch').innerHTML = PITCH_SVG;
+
+      const entryId = document.getElementById('entry-id').value;
+      FPL.setEntryId(entryId);
+
+      try {
+        const data = await FPL.apiFetch(`/api/v1/rate-squad?entry_id=${entryId}`);
+
+        const groups = { GKP: [], DEF: [], MID: [], FWD: [] };
+        for (const p of data.players) groups[p.position].push(p);
+
+        for (const [pos, players] of Object.entries(groups)) {
+          // Sort by percentile desc so best players sit toward centre
+          players.sort((a, b) => b.percentile - a.percentile);
+          players.forEach((p, i) => {
+            p._x = spreadX(players.length, i);
+            p._y = ROW_Y[pos];
+            placePlayer(p);
+          });
+        }
+
+        const scoreEl = document.getElementById('squad-score-value');
+        scoreEl.textContent = data.squad_score.toFixed(1);
+        const score = data.squad_score;
+        scoreEl.style.color = score >= 70 ? 'var(--success)' : score >= 45 ? '#d97706' : 'var(--error)';
+        document.getElementById('squad-summary').innerHTML = generateSummary(data);
+        document.getElementById('results').style.display = '';
+      } catch (err) {
+        FPL.showError(err.message);
+      } finally {
+        FPL.setLoading(false, btn);
+      }
+    }
+  </script>
+</body>
+</html>

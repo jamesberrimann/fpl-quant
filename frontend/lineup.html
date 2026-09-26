@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pick Team — FPL Tool</title>
+  <link rel="stylesheet" href="/style.css?v=2">
+  <style>
+    .pitch-outer { max-width: 460px; margin: 1.5rem auto 0; }
+
+    .formation-label {
+      text-align: center; font-size: 0.8125rem; font-weight: 600;
+      color: var(--text-muted); letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 0.5rem;
+    }
+
+    .pitch {
+      position: relative;
+      background: #2e7d46;
+      background-image: repeating-linear-gradient(180deg,
+        transparent, transparent 48px, rgba(0,0,0,.055) 48px, rgba(0,0,0,.055) 96px);
+      border-radius: 10px; overflow: hidden; aspect-ratio: 2/3;
+      box-shadow: var(--sh-lg);
+    }
+
+    .pitch-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    .player-node {
+      position: absolute; display: flex; flex-direction: column;
+      align-items: center; transform: translate(-50%, -50%);
+    }
+
+    .shirt-wrap { position: relative; width: 40px; height: 44px; }
+    .shirt-wrap svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 5px rgba(0,0,0,.45)); }
+
+    .cap-dot {
+      position: absolute; top: -4px; right: -6px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #f59e0b; border: 2px solid #fff;
+      font-size: 8px; font-weight: 800; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+    .cap-dot.vc { background: #94a3b8; }
+
+    .injury-dot {
+      position: absolute; top: -4px; left: -6px;
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid #fff;
+      font-size: 9px; font-weight: 900; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+    .injury-dot.out      { background: #dc2626; }
+    .injury-dot.doubtful { background: #f97316; }
+    .injury-dot.concern  { background: #eab308; color: #713f12; }
+
+    .player-lbl {
+      font-size: 0.5625rem; font-weight: 700; color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,.8);
+      white-space: nowrap; margin-top: 3px;
+      letter-spacing: 0.03em; text-transform: uppercase;
+    }
+    .fix-lbl {
+      font-size: 0.4375rem; font-weight: 600;
+      color: rgba(255,255,255,.7);
+      text-shadow: 0 1px 3px rgba(0,0,0,.7);
+      white-space: nowrap; margin-top: 1px;
+    }
+    .fix-lbl.dgw {
+      color: #fbbf24;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+    }
+
+    .bench-section { margin-top: 1.5rem; }
+    .bench-row {
+      display: flex; align-items: flex-start; justify-content: center;
+      gap: 1.25rem; flex-wrap: wrap; padding: 1rem 1.25rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); box-shadow: var(--sh-sm);
+    }
+    .bench-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .bench-shirt { width: 32px; height: 35px; }
+    .bench-shirt svg { width: 100%; height: 100%; opacity: .75; }
+    .bench-lbl { font-size: 0.5625rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .bench-fix { font-size: 0.4375rem; color: var(--text-muted); white-space: nowrap; }
+
+    .captain-ownership {
+      display: flex; align-items: center; gap: 0.4rem;
+      margin-top: 0.375rem; font-size: 0.75rem; color: var(--text-muted);
+    }
+    .captain-factors {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem;
+    }
+    .factor-tag {
+      font-size: 0.625rem; font-weight: 600;
+      padding: 0.1rem 0.45rem; border-radius: 4px;
+      background: var(--surface-alt, #f1f5f9); color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .badge-diff {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #fef3c7; color: #92400e;
+    }
+    .badge-home {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #dcfce7; color: #166534;
+    }
+    .badge-away {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #fee2e2; color: #991b1b;
+    }
+    .badge-variance-high {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #fff7ed; color: #c2410c;
+    }
+    .badge-variance-medium {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #fef9c3; color: #854d0e;
+    }
+    .badge-variance-low {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #f0fdf4; color: #15803d;
+    }
+    .badge-hot-form {
+      display: inline-flex; align-items: center;
+      padding: 0.1rem 0.4rem; border-radius: 4px;
+      font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em;
+      background: #fff7ed; color: #c2410c;
+    }
+
+    .chip-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 0.75rem 1rem;
+      box-shadow: var(--sh-sm); display: flex; align-items: flex-start; gap: 0.75rem;
+    }
+    .chip-card .chip-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--primary-subtle); border-radius: 8px;
+      color: var(--primary);
+    }
+    .chip-card .chip-name {
+      font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.15rem;
+    }
+    .chip-card .chip-gw {
+      font-size: 0.9375rem; font-weight: 700;
+    }
+    .chip-card .chip-reason {
+      font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;
+    }
+
+    .diff-captain-card {
+      margin-top: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 0.875rem 1rem;
+      box-shadow: var(--sh-sm);
+    }
+    .diff-captain-card .label {
+      font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #92400e; margin-bottom: 0.3rem;
+    }
+    .diff-captain-card .name { font-size: 1rem; font-weight: 700; }
+    .diff-captain-card .meta { font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.2rem; }
+    .diff-captain-card .hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+    @media (max-width: 480px) {
+      .pitch-outer { max-width: 100%; }
+      .shirt-wrap  { width: 34px; height: 37px; }
+      .bench-shirt { width: 27px; height: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+  <script src="/kits.js?v=5"></script>
+  <div class="container">
+    <h1>Pick Team</h1>
+
+    <div class="controls">
+      <label>Entry ID
+        <input type="number" id="entry-id" placeholder="e.g. 1234567">
+      </label>
+      <label>Free transfers
+        <input type="number" id="free-transfers" value="1" min="1" max="5" style="width:4rem">
+      </label>
+      <button id="run-btn" onclick="run()">Get Lineup</button>
+    </div>
+
+    <p class="msg msg-error" id="error"></p>
+    <div class="loading" id="loading"><div class="spinner"></div>Loading…</div>
+
+    <div id="results" style="display:none">
+      <div class="captain-grid">
+        <div class="card captain-card" id="captain-card">
+          <div class="label">Captain</div>
+          <div class="name" id="captain-name"></div>
+          <div class="meta" id="captain-meta"></div>
+          <div class="captain-ownership" id="captain-ownership"></div>
+          <div class="captain-factors" id="captain-factors"></div>
+        </div>
+        <div class="card captain-card" id="vc-card">
+          <div class="label">Vice-Captain</div>
+          <div class="name" id="vc-name"></div>
+          <div class="meta" id="vc-meta"></div>
+          <div class="captain-ownership" id="vc-ownership"></div>
+          <div class="captain-factors" id="vc-factors"></div>
+        </div>
+      </div>
+      <p class="tie-note" id="tie-note"></p>
+      <div id="diff-captain-section" style="display:none">
+        <div class="diff-captain-card">
+          <div class="label">Chasing rank? Differential captain</div>
+          <div class="name" id="diff-captain-name"></div>
+          <div class="meta" id="diff-captain-meta"></div>
+          <div class="captain-ownership" id="diff-captain-ownership"></div>
+          <div class="captain-factors" id="diff-captain-factors"></div>
+          <div class="hint">Similar ceiling to your captain pick but much lower ownership — good if you need a rank swing against rivals who are captaining the template.</div>
+        </div>
+      </div>
+
+      <div class="pitch-outer">
+        <div id="pitch-toggle" style="display:none;gap:0.5rem;justify-content:center;margin-bottom:0.5rem">
+          <button id="btn-current" onclick="showPitch(false)" style="font-size:0.75rem;padding:0.25rem 0.75rem;border-radius:var(--r-md);border:1.5px solid var(--primary);background:var(--primary);color:#fff;cursor:pointer;font-weight:600">Current</button>
+          <button id="btn-after" onclick="showPitch(true)" style="font-size:0.75rem;padding:0.25rem 0.75rem;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;font-weight:600">After transfers</button>
+        </div>
+        <p class="formation-label" id="formation-label"></p>
+        <div class="pitch" id="pitch"></div>
+      </div>
+
+      <div class="bench-section">
+        <h2>Bench</h2>
+        <div class="bench-row" id="bench-row"></div>
+      </div>
+      <div id="bench-coverage-warning" style="display:none;margin-top:0.75rem" class="msg msg-error"></div>
+
+      <div style="margin-top:1rem;padding:0.75rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);font-size:0.75rem;color:var(--text-muted)">
+        <div style="font-weight:700;margin-bottom:0.4rem;font-size:0.6875rem;text-transform:uppercase;letter-spacing:0.06em">Legend</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.6rem 1.25rem;align-items:center">
+          <span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#f59e0b;color:#fff;font-size:7px;font-weight:900;border:1.5px solid #e5e7eb;margin-right:4px">C</span>Captain</span>
+          <span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#94a3b8;color:#fff;font-size:7px;font-weight:900;border:1.5px solid #e5e7eb;margin-right:4px">V</span>Vice-captain</span>
+          <span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#dc2626;color:#fff;font-size:8px;font-weight:900;border:1.5px solid #e5e7eb;margin-right:4px">!</span>Injured / suspended</span>
+          <span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#f97316;color:#fff;font-size:8px;font-weight:900;border:1.5px solid #e5e7eb;margin-right:4px">!</span>Doubtful (&lt;75%)</span>
+          <span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#eab308;color:#713f12;font-size:8px;font-weight:900;border:1.5px solid #e5e7eb;margin-right:4px">!</span>Slight concern (75–99%)</span>
+          <span><span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#fbbf24;color:#fff;font-size:7px;font-weight:900;border:1.5px solid #e5e7eb;margin-right:4px">DGW</span>Double gameweek fixture</span>
+        </div>
+      </div>
+
+      <div id="autosub-section" style="display:none;margin-top:1rem">
+        <h2>Auto-subs</h2>
+        <div id="autosub-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+        <div id="autosub-unresolved" style="display:none;margin-top:0.5rem" class="msg msg-error"></div>
+      </div>
+
+      <div id="chip-plan-section" style="display:none;margin-top:1.5rem">
+        <h2>Chip Planner</h2>
+        <div id="chip-plan-list" style="display:flex;flex-direction:column;gap:0.625rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ROW_Y = { GKP: 12, DEF: 33, MID: 56, FWD: 81 };
+    const { teamColours, abbr, shirtSvg, spreadX, PITCH_SVG } = FPLKits;
+
+    let _lineupData = null;
+    let _lineupDataAfter = null;
+    let _transferMap = {};  // {out_id: inPlayerObj}
+
+    function renderPitchPlayers(lineupData, newPlayerIds) {
+      document.querySelectorAll('#pitch .player-node').forEach(n => n.remove());
+      document.getElementById('pitch').innerHTML = PITCH_SVG;
+      if (!lineupData) return;
+
+      const groups = { GKP: [], DEF: [], MID: [], FWD: [] };
+      for (const p of lineupData.starting_xi) groups[p.position].push(p);
+      document.getElementById('formation-label').textContent =
+        `${groups.DEF.length} – ${groups.MID.length} – ${groups.FWD.length}`;
+
+      for (const [pos, players] of Object.entries(groups)) {
+        players.forEach((p, i) => placePlayer(
+          p, spreadX(players.length, i), ROW_Y[pos],
+          p.id === lineupData.captain.id,
+          p.id === lineupData.vice_captain.id,
+          newPlayerIds.has(p.id),
+        ));
+      }
+
+      const bench = [lineupData.bench_gk, ...lineupData.bench_outfield].filter(Boolean);
+      document.getElementById('bench-row').innerHTML =
+        bench.map(p => benchHtml(p, newPlayerIds.has(p.id))).join('');
+    }
+
+    function renderCaptainCards(data) {
+      document.getElementById('captain-name').textContent = data.captain.web_name;
+      const capPts = data.captain.predicted_pts != null
+        ? `~${data.captain.predicted_pts.toFixed(1)} pts (×2 captain)`
+        : `Rating ${data.captain.rating}/100`;
+      document.getElementById('captain-meta').innerHTML =
+        capPts + ' ' + homeAwayBadge(data.captain.next_fixture_is_home)
+        + ' ' + varianceBadge(data.captain.variance_level)
+        + ' ' + hotFormBadge(data.captain.is_hot_form);
+      document.getElementById('captain-ownership').innerHTML = ownershipHtml(data.captain.ownership_pct);
+      document.getElementById('captain-factors').innerHTML = factorsHtml(data.captain.top_factors);
+
+      document.getElementById('vc-name').textContent = data.vice_captain.web_name;
+      const vcPts = data.vice_captain.predicted_pts != null
+        ? `~${data.vice_captain.predicted_pts.toFixed(1)} pts` : '';
+      const adv = data.captain_advantage_pct != null
+        ? ` · ${data.captain_advantage_pct.toFixed(1)}% ahead of VC` : '';
+      document.getElementById('vc-meta').innerHTML =
+        (vcPts + adv).trim() + ' ' + homeAwayBadge(data.vice_captain.next_fixture_is_home)
+        + ' ' + varianceBadge(data.vice_captain.variance_level)
+        + ' ' + hotFormBadge(data.vice_captain.is_hot_form);
+      document.getElementById('vc-ownership').innerHTML = ownershipHtml(data.vice_captain.ownership_pct);
+      document.getElementById('vc-factors').innerHTML = factorsHtml(data.vice_captain.top_factors);
+      document.getElementById('tie-note').textContent = data.tie_broken_by_ceiling
+        ? 'Tie broken by ceiling — two players rated equally; higher-ceiling position chosen.' : '';
+    }
+
+    function showPitch(useTransfers) {
+      const lineupData = (useTransfers && _lineupDataAfter) ? _lineupDataAfter : _lineupData;
+      const newIds = useTransfers
+        ? new Set(Object.values(_transferMap).map(p => p.id))
+        : new Set();
+      renderPitchPlayers(lineupData, newIds);
+      renderCaptainCards(lineupData);
+
+      document.getElementById('btn-current').style.background = useTransfers ? 'var(--surface)' : 'var(--primary)';
+      document.getElementById('btn-current').style.color = useTransfers ? 'var(--text-muted)' : '#fff';
+      document.getElementById('btn-current').style.borderColor = useTransfers ? 'var(--border)' : 'var(--primary)';
+      document.getElementById('btn-after').style.background = useTransfers ? 'var(--primary)' : 'var(--surface)';
+      document.getElementById('btn-after').style.color = useTransfers ? '#fff' : 'var(--text-muted)';
+      document.getElementById('btn-after').style.borderColor = useTransfers ? 'var(--primary)' : 'var(--border)';
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = FPL.getEntryId();
+      if (saved) document.getElementById('entry-id').value = saved;
+      document.getElementById('entry-id').addEventListener('change', () =>
+        FPL.setEntryId(document.getElementById('entry-id').value));
+    });
+
+    function factorsHtml(factors) {
+      if (!factors || !factors.length) return '';
+      return factors.map(f => `<span class="factor-tag">${f}</span>`).join('');
+    }
+
+    function ownershipHtml(pct) {
+      if (pct == null) return '';
+      const diff = pct < 15 ? ' <span class="badge-diff">DIFF</span>' : '';
+      return `${pct.toFixed(1)}% owned${diff}`;
+    }
+
+    function homeAwayBadge(isHome) {
+      if (isHome === null || isHome === undefined) return '';
+      return isHome
+        ? '<span class="badge-home">HOME</span>'
+        : '<span class="badge-away">AWAY</span>';
+    }
+
+    function varianceBadge(level) {
+      if (!level) return '';
+      if (level === 'high') return '<span class="badge-variance-high" title="High ceiling — explosive potential this GW">HIGH VAR</span>';
+      if (level === 'medium') return '<span class="badge-variance-medium" title="Moderate ceiling">MED VAR</span>';
+      return '<span class="badge-variance-low" title="Low ceiling — safe but unlikely to boom">LOW VAR</span>';
+    }
+
+    function hotFormBadge(isHot) {
+      if (!isHot) return '';
+      return `<span class="badge-hot-form" title="Recent form at least 30% above season average"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> HOT</span>`;
+    }
+
+    function injuryBadge(player) {
+      const s = player.status || 'a';
+      const chance = player.chance_of_playing_next_round;
+      if (s === 'i' || s === 's' || s === 'u' || chance === 0)
+        return `<span class="injury-dot out" title="${s === 's' ? 'Suspended' : 'Injured / unavailable'}">!</span>`;
+      if (s === 'd' || (chance != null && chance < 75))
+        return `<span class="injury-dot doubtful" title="Doubtful${chance != null ? ' (' + chance + '%)' : ''}">!</span>`;
+      if (chance != null && chance < 100)
+        return `<span class="injury-dot concern" title="${chance}% chance of playing">!</span>`;
+      return '';
+    }
+
+    function placePlayer(player, xPct, yPct, isCaptain, isVC, isNew) {
+      const [fill, stroke] = teamColours(player);
+      const node = document.createElement('div');
+      node.className = 'player-node';
+      node.style.left = xPct + '%';
+      node.style.top  = yPct  + '%';
+      let capBadge = '';
+      if (isCaptain) capBadge = '<span class="cap-dot" aria-label="Captain">C</span>';
+      else if (isVC) capBadge = '<span class="cap-dot vc" aria-label="Vice-captain">V</span>';
+      const isDgw = player.next_fixture && player.next_fixture.includes('DGW');
+      const fix = player.next_fixture
+        ? `<div class="fix-lbl${isDgw ? ' dgw' : ''}">${player.next_fixture}</div>` : '';
+      const newRing = isNew ? 'box-shadow:0 0 0 3px #22c55e,0 2px 8px rgba(0,0,0,.4);border-radius:50%;' : '';
+      node.innerHTML = `
+        <div class="shirt-wrap" style="${newRing}">${shirtSvg(fill, stroke, abbr(player.web_name))}${capBadge}${injuryBadge(player)}</div>
+        <div class="player-lbl" style="${isNew ? 'color:#22c55e;font-weight:700' : ''}">${player.web_name}</div>
+        ${fix}`;
+      document.getElementById('pitch').appendChild(node);
+    }
+
+    function benchHtml(player, isNew) {
+      const [fill, stroke] = teamColours(player);
+      const isDgw = player.next_fixture && player.next_fixture.includes('DGW');
+      const fix = player.next_fixture
+        ? `<div class="bench-fix${isDgw ? ' dgw' : ''}">${player.next_fixture}</div>` : '';
+      const newRing = isNew ? 'box-shadow:0 0 0 3px #22c55e,0 2px 8px rgba(0,0,0,.4);border-radius:50%;' : '';
+      return `<div class="bench-item">
+        <div class="bench-shirt" style="position:relative;${newRing}">${shirtSvg(fill, stroke, abbr(player.web_name))}${injuryBadge(player)}</div>
+        <div class="bench-lbl" style="${isNew ? 'color:#22c55e;font-weight:700' : ''}">${player.web_name}</div>
+        ${fix}
+      </div>`;
+    }
+
+    async function run() {
+      const btn = document.getElementById('run-btn');
+      document.getElementById('results').style.display = 'none';
+      FPL.clearError(); FPL.setLoading(true, btn);
+      document.querySelectorAll('#pitch .player-node').forEach(n => n.remove());
+      document.getElementById('pitch').innerHTML = PITCH_SVG;
+
+      const entryId = document.getElementById('entry-id').value;
+      FPL.setEntryId(entryId);
+
+      try {
+        const data = await FPL.apiFetch(`/api/v1/lineup?entry_id=${entryId}`);
+
+        renderCaptainCards(data);
+
+        const diff = data.differential_captain;
+        if (diff) {
+          document.getElementById('diff-captain-section').style.display = '';
+          document.getElementById('diff-captain-name').textContent = diff.web_name;
+          const diffPts = diff.predicted_pts != null
+            ? `~${diff.predicted_pts.toFixed(1)} pts · Rating ${diff.rating}/100` : `Rating ${diff.rating}/100`;
+          document.getElementById('diff-captain-meta').innerHTML =
+            diffPts + ' ' + homeAwayBadge(diff.next_fixture_is_home)
+            + ' ' + varianceBadge(diff.variance_level)
+            + ' ' + hotFormBadge(diff.is_hot_form);
+          document.getElementById('diff-captain-ownership').innerHTML = ownershipHtml(diff.ownership_pct);
+          document.getElementById('diff-captain-factors').innerHTML = factorsHtml(diff.top_factors);
+        } else {
+          document.getElementById('diff-captain-section').style.display = 'none';
+        }
+
+        _lineupData = data;
+        _lineupDataAfter = null;
+        _transferMap = {};
+        document.getElementById('pitch-toggle').style.display = 'none';
+        renderPitchPlayers(_lineupData, new Set());
+
+        // Fetch transfer suggestions then re-run lineup with overrides — non-fatal if either fails
+        const freeTransfers = parseInt(document.getElementById('free-transfers').value, 10) || 1;
+        FPL.apiFetch(`/api/v1/suggest-transfers?entry_id=${entryId}&free_transfers=${freeTransfers}`).then(tData => {
+          if (!tData.suggestions || tData.suggestions.length === 0) return;
+          _transferMap = {};
+          for (const s of tData.suggestions) {
+            _transferMap[s.out_id] = { id: s.in_id, web_name: s.in_web_name, team_short_name: s.in_team_short_name, position: s.position };
+          }
+          const overridesStr = Object.entries(_transferMap).map(([outId, p]) => `${outId}:${p.id}`).join(',');
+          FPL.apiFetch(`/api/v1/lineup?entry_id=${entryId}&overrides=${overridesStr}`).then(afterData => {
+            _lineupDataAfter = afterData;
+            document.getElementById('pitch-toggle').style.display = 'flex';
+          }).catch(() => {
+            // If re-lineup fails, still show toggle using the transfer map visual swap
+            document.getElementById('pitch-toggle').style.display = 'flex';
+          });
+        }).catch(() => {});
+
+        const as = data.autosub_simulation;
+        const autosubSection = document.getElementById('autosub-section');
+        if (as && as.substitutions.length > 0) {
+          document.getElementById('autosub-list').innerHTML = as.substitutions.map(s =>
+            `<div style="font-size:0.8125rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:0.6rem 0.875rem;box-shadow:var(--sh-sm)">
+              <span style="color:var(--error);font-weight:600">${s.out_name}</span>
+              <span style="color:var(--text-muted);margin:0 0.4rem">→</span>
+              <span style="color:var(--success);font-weight:600">${s.in_name}</span>
+            </div>`
+          ).join('');
+          autosubSection.style.display = '';
+        } else if (as && as.unresolved_absences.length > 0) {
+          autosubSection.style.display = '';
+          document.getElementById('autosub-list').innerHTML = '';
+        } else {
+          autosubSection.style.display = 'none';
+        }
+        if (as && as.unresolved_absences.length > 0) {
+          const unresEl = document.getElementById('autosub-unresolved');
+          unresEl.textContent = `No eligible substitute for: ${as.unresolved_absences.join(', ')}`;
+          unresEl.style.display = '';
+        }
+
+        const coverageEl = document.getElementById('bench-coverage-warning');
+        if (data.bench_coverage && data.bench_coverage.warning) {
+          coverageEl.textContent = data.bench_coverage.warning;
+          coverageEl.style.display = '';
+        } else {
+          coverageEl.style.display = 'none';
+        }
+
+        // Load chip plan in parallel — non-fatal if it fails
+        FPL.apiFetch(`/api/v1/chip-plan?entry_id=${entryId}`).then(chips => {
+          const CHIP_SVG = {
+            triple_captain: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>`,
+            bench_boost:    `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+            free_hit:       `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>`,
+            wildcard:       `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+          };
+          const CHIP_NAMES = {
+            triple_captain: 'Triple Captain',
+            bench_boost: 'Bench Boost',
+            free_hit: 'Free Hit',
+            wildcard: 'Wildcard',
+          };
+          const cards = [];
+          for (const [key, svgIcon] of Object.entries(CHIP_SVG)) {
+            const val = chips[key];
+            if (!val) continue;
+            const items = Array.isArray(val) ? val : [val];
+            for (const item of items) {
+              cards.push(`<div class="chip-card">
+                <div class="chip-icon">${svgIcon}</div>
+                <div>
+                  <div class="chip-name">${CHIP_NAMES[key]}</div>
+                  <div class="chip-gw">GW${item.gameweek}</div>
+                  <div class="chip-reason">${item.reason}</div>
+                </div>
+              </div>`);
+            }
+          }
+          if (cards.length) {
+            document.getElementById('chip-plan-list').innerHTML = cards.join('');
+            document.getElementById('chip-plan-section').style.display = '';
+          }
+        }).catch(() => {});
+
+        document.getElementById('results').style.display = '';
+      } catch (err) {
+        FPL.showError(err.message);
+      } finally {
+        FPL.setLoading(false, btn);
+      }
+    }
+  </script>
+</body>
+</html>

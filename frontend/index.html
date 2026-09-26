@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FPL Decision-Support Tool</title>
+  <link rel="stylesheet" href="/style.css?v=2">
+</head>
+<body>
+  <script src="/nav.js"></script>
+  <div class="container">
+
+    <div class="hero">
+      <div class="hero-eyebrow" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        Linear-programming optimizer
+      </div>
+      <h1>FPL Decision-Support Tool</h1>
+      <p>Data-driven squad building, transfer suggestions, lineup picks, and chip planning — powered by a position-aware scoring model and real fixture signals.</p>
+    </div>
+
+    <div id="health-row" class="health-row" role="status" aria-live="polite">
+      <span class="dot dot-pending" id="health-dot"></span>
+      <span id="health-text">Checking API…</span>
+    </div>
+
+    <div class="key-setup" id="key-setup">
+      <label for="key-input">API Key</label>
+      <input type="password" id="key-input" placeholder="Paste your key here" style="width:240px" autocomplete="current-password">
+      <button onclick="saveKey()">Save</button>
+      <span class="key-saved" id="key-saved" style="display:none" aria-live="polite">Saved</span>
+    </div>
+
+    <div class="feature-grid">
+
+      <a class="feature-card" href="/optimize.html" data-feature="optimize">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+        </div>
+        <div class="card-title">Best Squad</div>
+        <div class="card-desc">Build the best possible 15-man squad from scratch under a budget using integer programming, respecting position and club constraints.</div>
+      </a>
+
+      <a class="feature-card" href="/rate-squad.html" data-feature="rating">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+        </div>
+        <div class="card-title">Squad Rating</div>
+        <div class="card-desc">Rate your current squad against the full player pool with position percentiles and regression-risk flags for defenders riding luck.</div>
+      </a>
+
+      <a class="feature-card" href="/transfers.html" data-feature="transfers">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/></svg>
+        </div>
+        <div class="card-title">Transfers</div>
+        <div class="card-desc">Ranked transfer suggestions with a shared budget, club-limit enforcement, hit-cost labeling, fixture-timing cautions, and improvement breakdowns.</div>
+      </a>
+
+      <a class="feature-card" href="/lineup.html" data-feature="lineup">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+        </div>
+        <div class="card-title">Pick Team</div>
+        <div class="card-desc">Best legal starting XI, bench order, captain recommendation, auto-sub simulation, and chip planner — all in one place.</div>
+      </a>
+
+      <a class="feature-card" href="/fixture-plan.html" data-feature="fixtures">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </div>
+        <div class="card-title">Fixture Plan</div>
+        <div class="card-desc">Multi-gameweek fixture difficulty heatmap for your squad, highlighting DGWs, BGWs, and the best and worst runs ahead.</div>
+      </a>
+
+    </div>
+  </div>
+
+  <script>
+    fetch('/api/v1/health')
+      .then(r => r.json())
+      .then(data => {
+        const dot  = document.getElementById('health-dot');
+        const text = document.getElementById('health-text');
+        if (data.status === 'ok') {
+          dot.className  = 'dot dot-ok';
+          text.textContent = 'API online';
+        } else {
+          dot.className  = 'dot dot-err';
+          text.textContent = 'API degraded — ' + (data.db || 'unknown issue');
+        }
+      })
+      .catch(() => {
+        document.getElementById('health-dot').className = 'dot dot-err';
+        document.getElementById('health-text').textContent = 'API unreachable';
+      });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('fpl_api_key')) {
+        document.getElementById('key-setup').style.display = 'none';
+      }
+    });
+
+    function saveKey() {
+      const val = document.getElementById('key-input').value.trim();
+      if (!val) return;
+      localStorage.setItem('fpl_api_key', val);
+      document.getElementById('key-input').value = '';
+      document.getElementById('key-saved').style.display = '';
+      if (window.FPL) location.reload();
+    }
+  </script>
+</body>
+</html>

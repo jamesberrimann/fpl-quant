@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixture Plan — FPL Tool</title>
+  <link rel="stylesheet" href="/style.css?v=2">
+  <style>
+    .heatmap-wrap {
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    table.heatmap {
+      border-collapse: collapse;
+      min-width: 560px;
+      width: 100%;
+      font-size: 0.8125rem;
+    }
+
+    table.heatmap th {
+      padding: 0.4rem 0.6rem;
+      text-align: center;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+
+    table.heatmap th.col-player {
+      text-align: left;
+      min-width: 130px;
+    }
+
+    table.heatmap td {
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    table.heatmap td.player-cell {
+      white-space: nowrap;
+    }
+
+    .player-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .player-team {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      margin-left: 0.3rem;
+    }
+
+    table.heatmap td.fix-cell {
+      text-align: center;
+      min-width: 72px;
+    }
+
+    /* FDR colour bands — consistent with fpl.com conventions */
+    .fdr-1 { background: #00ff87; color: #0d1d14; }
+    .fdr-2 { background: #01fc7a; color: #0d1d14; }
+    .fdr-3 { background: #e7e70f; color: #1a1a00; }
+    .fdr-4 { background: #ff1751; color: #fff; }
+    .fdr-5 { background: #80072d; color: #fff; }
+    .fdr-blank { background: var(--surface-alt, #f1f5f9); color: var(--text-muted); }
+
+    .fix-cell .fix-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .fix-cell .fix-ha {
+      display: block;
+      font-size: 0.5625rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      opacity: 0.75;
+      margin-top: 1px;
+    }
+
+    .fix-cell .fix-dgw-badge {
+      display: inline-block;
+      font-size: 0.5rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      background: rgba(0,0,0,.2);
+      border-radius: 3px;
+      padding: 0 3px;
+      margin-top: 2px;
+    }
+
+    /* Position badge column */
+    .pos-badge {
+      display: inline-block;
+      font-size: 0.5625rem; font-weight: 700;
+      padding: 1px 5px; border-radius: 3px;
+      margin-right: 4px; vertical-align: middle;
+      letter-spacing: 0.04em;
+    }
+    .pos-GKP { background: #f59e0b22; color: #92400e; }
+    .pos-DEF { background: #10b98122; color: #065f46; }
+    .pos-MID { background: #3b82f622; color: #1e40af; }
+    .pos-FWD { background: #ef444422; color: #991b1b; }
+
+    .legend {
+      display: flex; align-items: center; gap: 0.75rem;
+      flex-wrap: wrap; margin-top: 0.75rem;
+      font-size: 0.6875rem; color: var(--text-muted);
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+    .legend-swatch {
+      width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+  <div class="container">
+    <h1>Fixture Plan</h1>
+    <p style="color:var(--text-muted);font-size:0.875rem;margin-top:-0.5rem">
+      Your squad's upcoming fixture difficulty — plan transfers, chips and captaincy weeks at a glance.
+    </p>
+
+    <div class="controls">
+      <label>Entry ID
+        <input type="number" id="entry-id" placeholder="e.g. 1234567">
+      </label>
+      <label>Gameweeks ahead
+        <input type="number" id="num-gws" value="6" min="1" max="10" style="width:65px">
+      </label>
+      <button id="run-btn" onclick="run()">Load Plan</button>
+    </div>
+
+    <p class="msg msg-error" id="error"></p>
+    <div class="loading" id="loading"><div class="spinner"></div>Loading…</div>
+
+    <div id="results" style="display:none">
+      <div class="heatmap-wrap">
+        <table class="heatmap" id="heatmap-table"></table>
+      </div>
+      <div class="legend">
+        <strong>Difficulty:</strong>
+        <div class="legend-item"><div class="legend-swatch fdr-1"></div>1 – Very easy</div>
+        <div class="legend-item"><div class="legend-swatch fdr-2"></div>2 – Easy</div>
+        <div class="legend-item"><div class="legend-swatch fdr-3"></div>3 – Medium</div>
+        <div class="legend-item"><div class="legend-swatch fdr-4"></div>4 – Hard</div>
+        <div class="legend-item"><div class="legend-swatch fdr-5"></div>5 – Very hard</div>
+        <div class="legend-item"><div class="legend-swatch fdr-blank"></div>Blank GW</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const saved = FPL.getEntryId();
+      if (saved) document.getElementById('entry-id').value = saved;
+      document.getElementById('entry-id').addEventListener('change', () =>
+        FPL.setEntryId(document.getElementById('entry-id').value));
+    });
+
+    function fdrClass(slot) {
+      if (slot.is_blank) return 'fdr-blank';
+      const fdr = Math.round(slot.avg_fdr);
+      return `fdr-${Math.max(1, Math.min(5, fdr))}`;
+    }
+
+    function cellContent(slot) {
+      if (slot.is_blank) return '<span class="fix-label">—</span>';
+
+      const parts = slot.opponents.map(o => {
+        const ha = o.is_home ? 'H' : 'A';
+        return `${o.short_name}(${ha})`;
+      });
+
+      const label = parts.join('<br>');
+      const dgw = slot.is_double ? '<span class="fix-dgw-badge">DGW</span>' : '';
+      return `<span class="fix-label">${label}</span>${dgw}`;
+    }
+
+    function buildTable(data) {
+      const table = document.getElementById('heatmap-table');
+      const gws = data.players.length > 0
+        ? data.players[0].gameweek_slots.map(s => s.gameweek)
+        : [];
+
+      // Header row
+      let html = '<thead><tr>';
+      html += '<th class="col-player">Player</th>';
+      for (const gw of gws) html += `<th>GW${gw}</th>`;
+      html += '</tr></thead><tbody>';
+
+      // Player rows
+      for (const player of data.players) {
+        html += '<tr>';
+        html += `<td class="player-cell">
+          <span class="pos-badge pos-${player.position}">${player.position}</span>
+          <span class="player-name">${player.web_name}</span>
+          <span class="player-team">${player.team_short_name}</span>
+        </td>`;
+        for (const slot of player.gameweek_slots) {
+          html += `<td class="fix-cell ${fdrClass(slot)}">${cellContent(slot)}</td>`;
+        }
+        html += '</tr>';
+      }
+
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    async function run() {
+      const btn = document.getElementById('run-btn');
+      document.getElementById('results').style.display = 'none';
+      FPL.clearError(); FPL.setLoading(true, btn);
+
+      const entryId = document.getElementById('entry-id').value;
+      const numGws  = document.getElementById('num-gws').value;
+      FPL.setEntryId(entryId);
+
+      try {
+        const data = await FPL.apiFetch(
+          `/api/v1/fixture-plan?entry_id=${entryId}&num_gameweeks=${numGws}`
+        );
+        buildTable(data);
+        document.getElementById('results').style.display = '';
+      } catch (err) {
+        FPL.showError(err.message);
+      } finally {
+        FPL.setLoading(false, btn);
+      }
+    }
+  </script>
+</body>
+</html>

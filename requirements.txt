@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+alembic
+asyncpg
+psycopg2-binary
+pydantic-settings
+httpx
+pandas
+pulp==3.3.2
+apscheduler
+tenacity
